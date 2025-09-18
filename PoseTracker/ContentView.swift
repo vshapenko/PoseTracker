@@ -37,21 +37,55 @@ struct ExerciseSelector: View {
 
     var body: some View {
         Menu {
-            ForEach(Exercise.allCases, id: \.self) { exercise in
-                Button(exercise.displayName) {
-                    selectedExercise = exercise
+            Section("Basic Exercises") {
+                ForEach([Exercise.squats, .pushups, .plank, .lunges, .jumpingJacks], id: \.self) { exercise in
+                    Button(exercise.displayName) {
+                        selectedExercise = exercise
+                    }
+                }
+            }
+            Section("CrossFit") {
+                ForEach([Exercise.burpees, .thrusters, .wallBalls, .boxJumps, .doubleUnders, .pullUps], id: \.self) { exercise in
+                    Button(exercise.displayName) {
+                        selectedExercise = exercise
+                    }
+                }
+            }
+            Section("Olympic Lifts") {
+                ForEach([Exercise.deadlifts, .cleanAndJerk, .snatches, .kettlebellSwings], id: \.self) { exercise in
+                    Button(exercise.displayName) {
+                        selectedExercise = exercise
+                    }
                 }
             }
         } label: {
             HStack {
-                Image(systemName: "figure.strengthtraining.traditional")
+                Image(systemName: iconForExercise(selectedExercise))
                 Text(selectedExercise.displayName)
+                    .lineLimit(1)
                 Image(systemName: "chevron.down")
             }
             .padding()
             .background(Color.black.opacity(0.6))
             .foregroundColor(.white)
             .cornerRadius(10)
+        }
+    }
+
+    private func iconForExercise(_ exercise: Exercise) -> String {
+        switch exercise {
+        case .squats, .lunges, .boxJumps:
+            return "figure.strengthtraining.functional"
+        case .pushups, .plank, .burpees:
+            return "figure.core.training"
+        case .deadlifts, .cleanAndJerk, .snatches, .kettlebellSwings:
+            return "figure.strengthtraining.traditional"
+        case .pullUps:
+            return "figure.climbing"
+        case .jumpingJacks, .doubleUnders:
+            return "figure.jumprope"
+        case .thrusters, .wallBalls:
+            return "figure.highintensity.intervaltraining"
         }
     }
 }

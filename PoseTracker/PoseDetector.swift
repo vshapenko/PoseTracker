@@ -61,6 +61,26 @@ class PoseDetector: NSObject, ObservableObject {
             analyzeLunge(joints)
         case .jumpingJacks:
             analyzeJumpingJack(joints)
+        case .burpees:
+            analyzeBurpee(joints)
+        case .deadlifts:
+            analyzeDeadlift(joints)
+        case .kettlebellSwings:
+            analyzeKettlebellSwing(joints)
+        case .boxJumps:
+            analyzeBoxJump(joints)
+        case .wallBalls:
+            analyzeWallBall(joints)
+        case .thrusters:
+            analyzeThruster(joints)
+        case .cleanAndJerk:
+            analyzeCleanAndJerk(joints)
+        case .snatches:
+            analyzeSnatch(joints)
+        case .doubleUnders:
+            analyzeDoubleUnder(joints)
+        case .pullUps:
+            analyzePullUp(joints)
         }
     }
 
@@ -297,6 +317,404 @@ class PoseDetector: NSObject, ObservableObject {
         let cosAngle = dotProduct / (magnitude1 * magnitude2)
         let angleRadians = acos(min(max(cosAngle, -1), 1))
         return angleRadians * 180 / .pi
+    }
+
+    private func analyzeBurpee(_ joints: [VNHumanBodyPoseObservation.JointName: VNRecognizedPoint]) {
+        guard let leftHip = joints[.leftHip],
+              let leftKnee = joints[.leftKnee],
+              let leftShoulder = joints[.leftShoulder],
+              let leftWrist = joints[.leftWrist],
+              let head = joints[.nose],
+              leftHip.confidence > 0.4,
+              leftShoulder.confidence > 0.4 else {
+            feedback = "Position your full body in frame"
+            accuracy = 0.0
+            return
+        }
+
+        let bodyAlignment = abs(leftShoulder.location.y - leftHip.location.y)
+        let handsNearGround = leftWrist.location.y > 0.7
+        let isStanding = leftHip.location.y < 0.5
+
+        if handsNearGround && bodyAlignment < 0.2 {
+            if exercisePhase != .down {
+                exercisePhase = .down
+                feedback = "Good plank position!"
+                accuracy = 0.85
+            }
+        } else if isStanding && leftWrist.location.y < head.location.y {
+            if exercisePhase == .down {
+                exercisePhase = .up
+                repCount += 1
+                feedback = "Excellent burpee!"
+                accuracy = 0.95
+            } else {
+                feedback = "Drop down to plank"
+                accuracy = 0.7
+            }
+        } else {
+            feedback = "Transition smoothly"
+            accuracy = 0.75
+        }
+    }
+
+    private func analyzeDeadlift(_ joints: [VNHumanBodyPoseObservation.JointName: VNRecognizedPoint]) {
+        guard let leftHip = joints[.leftHip],
+              let leftKnee = joints[.leftKnee],
+              let leftShoulder = joints[.leftShoulder],
+              let rightHip = joints[.rightHip],
+              let rightKnee = joints[.rightKnee],
+              leftHip.confidence > 0.5,
+              leftKnee.confidence > 0.5 else {
+            feedback = "Position your full body in frame"
+            accuracy = 0.0
+            return
+        }
+
+        let hipHingeAngle = calculateAngle(
+            point1: leftShoulder.location,
+            vertex: leftHip.location,
+            point2: leftKnee.location
+        )
+        let kneeAngle = calculateAngle(
+            point1: leftHip.location,
+            vertex: leftKnee.location,
+            point2: CGPoint(x: leftKnee.location.x, y: leftKnee.location.y + 0.3)
+        )
+
+        if hipHingeAngle < 90 && kneeAngle > 140 {
+            if exercisePhase != .down {
+                exercisePhase = .down
+                feedback = "Good hip hinge! Keep back straight"
+                accuracy = 0.9
+            }
+        } else if hipHingeAngle > 150 {
+            if exercisePhase == .down {
+                exercisePhase = .up
+                repCount += 1
+                feedback = "Strong lift! Maintain form"
+                accuracy = 0.95
+            } else {
+                feedback = "Hinge at hips, slight knee bend"
+                accuracy = 0.7
+            }
+        } else {
+            feedback = "Keep back straight, drive through hips"
+            accuracy = 0.8
+        }
+    }
+
+    private func analyzeKettlebellSwing(_ joints: [VNHumanBodyPoseObservation.JointName: VNRecognizedPoint]) {
+        guard let leftHip = joints[.leftHip],
+              let leftShoulder = joints[.leftShoulder],
+              let leftWrist = joints[.leftWrist],
+              let rightWrist = joints[.rightWrist],
+              leftHip.confidence > 0.5,
+              leftShoulder.confidence > 0.5 else {
+            feedback = "Position your full body in frame"
+            accuracy = 0.0
+            return
+        }
+
+        let armHeight = (leftWrist.location.y + rightWrist.location.y) / 2
+        let shoulderHeight = leftShoulder.location.y
+        let hipPosition = leftHip.location.y
+
+        if armHeight > hipPosition && armHeight > shoulderHeight * 0.8 {
+            if exercisePhase != .down {
+                exercisePhase = .down
+                feedback = "Good backswing position"
+                accuracy = 0.85
+            }
+        } else if armHeight < shoulderHeight {
+            if exercisePhase == .down {
+                exercisePhase = .up
+                repCount += 1
+                feedback = "Powerful hip drive!"
+                accuracy = 0.95
+            } else {
+                feedback = "Swing between legs"
+                accuracy = 0.7
+            }
+        } else {
+            feedback = "Use hip drive, not arms"
+            accuracy = 0.75
+        }
+    }
+
+    private func analyzeBoxJump(_ joints: [VNHumanBodyPoseObservation.JointName: VNRecognizedPoint]) {
+        guard let leftHip = joints[.leftHip],
+              let leftKnee = joints[.leftKnee],
+              let leftAnkle = joints[.leftAnkle],
+              leftHip.confidence > 0.5,
+              leftKnee.confidence > 0.5 else {
+            feedback = "Position your full body in frame"
+            accuracy = 0.0
+            return
+        }
+
+        let kneeAngle = calculateAngle(
+            point1: leftHip.location,
+            vertex: leftKnee.location,
+            point2: leftAnkle.location
+        )
+        let verticalPosition = leftHip.location.y
+
+        if kneeAngle < 110 && verticalPosition > 0.5 {
+            if exercisePhase != .down {
+                exercisePhase = .down
+                feedback = "Good squat prep!"
+                accuracy = 0.85
+            }
+        } else if verticalPosition < 0.3 {
+            if exercisePhase == .down {
+                exercisePhase = .up
+                repCount += 1
+                feedback = "Great jump! Land softly"
+                accuracy = 0.95
+            }
+        } else {
+            feedback = "Prep, explode up, land soft"
+            accuracy = 0.75
+        }
+    }
+
+    private func analyzeWallBall(_ joints: [VNHumanBodyPoseObservation.JointName: VNRecognizedPoint]) {
+        guard let leftHip = joints[.leftHip],
+              let leftKnee = joints[.leftKnee],
+              let leftWrist = joints[.leftWrist],
+              let rightWrist = joints[.rightWrist],
+              let head = joints[.nose],
+              leftKnee.confidence > 0.5 else {
+            feedback = "Position your full body in frame"
+            accuracy = 0.0
+            return
+        }
+
+        let kneeAngle = calculateAngle(
+            point1: leftHip.location,
+            vertex: leftKnee.location,
+            point2: CGPoint(x: leftKnee.location.x, y: leftKnee.location.y + 0.3)
+        )
+        let armsUp = (leftWrist.location.y < head.location.y) && (rightWrist.location.y < head.location.y)
+
+        if kneeAngle < 100 && !armsUp {
+            if exercisePhase != .down {
+                exercisePhase = .down
+                feedback = "Good squat depth!"
+                accuracy = 0.85
+            }
+        } else if kneeAngle > 160 && armsUp {
+            if exercisePhase == .down {
+                exercisePhase = .up
+                repCount += 1
+                feedback = "Nice throw! Catch and repeat"
+                accuracy = 0.95
+            } else {
+                feedback = "Squat with ball at chest"
+                accuracy = 0.7
+            }
+        } else {
+            feedback = "Squat deep, throw high"
+            accuracy = 0.75
+        }
+    }
+
+    private func analyzeThruster(_ joints: [VNHumanBodyPoseObservation.JointName: VNRecognizedPoint]) {
+        guard let leftHip = joints[.leftHip],
+              let leftKnee = joints[.leftKnee],
+              let leftShoulder = joints[.leftShoulder],
+              let leftElbow = joints[.leftElbow],
+              let leftWrist = joints[.leftWrist],
+              leftKnee.confidence > 0.5,
+              leftElbow.confidence > 0.5 else {
+            feedback = "Position your full body in frame"
+            accuracy = 0.0
+            return
+        }
+
+        let kneeAngle = calculateAngle(
+            point1: leftHip.location,
+            vertex: leftKnee.location,
+            point2: CGPoint(x: leftKnee.location.x, y: leftKnee.location.y + 0.3)
+        )
+        let armExtension = leftWrist.location.y < leftShoulder.location.y
+
+        if kneeAngle < 100 && !armExtension {
+            if exercisePhase != .down {
+                exercisePhase = .down
+                feedback = "Good front squat position"
+                accuracy = 0.85
+            }
+        } else if kneeAngle > 160 && armExtension {
+            if exercisePhase == .down {
+                exercisePhase = .up
+                repCount += 1
+                feedback = "Explosive thruster!"
+                accuracy = 0.95
+            } else {
+                feedback = "Squat down with bar racked"
+                accuracy = 0.7
+            }
+        } else {
+            feedback = "One fluid motion from squat to press"
+            accuracy = 0.8
+        }
+    }
+
+    private func analyzeCleanAndJerk(_ joints: [VNHumanBodyPoseObservation.JointName: VNRecognizedPoint]) {
+        guard let leftHip = joints[.leftHip],
+              let leftShoulder = joints[.leftShoulder],
+              let leftElbow = joints[.leftElbow],
+              let leftWrist = joints[.leftWrist],
+              leftShoulder.confidence > 0.5,
+              leftElbow.confidence > 0.5 else {
+            feedback = "Position your full body in frame"
+            accuracy = 0.0
+            return
+        }
+
+        let elbowAngle = calculateAngle(
+            point1: leftShoulder.location,
+            vertex: leftElbow.location,
+            point2: leftWrist.location
+        )
+        let overhead = leftWrist.location.y < leftShoulder.location.y - 0.2
+
+        if elbowAngle < 75 && !overhead {
+            if exercisePhase != .down {
+                exercisePhase = .down
+                feedback = "Good rack position"
+                accuracy = 0.85
+            }
+        } else if overhead && elbowAngle > 170 {
+            if exercisePhase == .down {
+                exercisePhase = .up
+                repCount += 1
+                feedback = "Strong jerk! Lock it out"
+                accuracy = 0.95
+            }
+        } else {
+            feedback = "Clean to shoulders, then jerk overhead"
+            accuracy = 0.75
+        }
+    }
+
+    private func analyzeSnatch(_ joints: [VNHumanBodyPoseObservation.JointName: VNRecognizedPoint]) {
+        guard let leftHip = joints[.leftHip],
+              let leftKnee = joints[.leftKnee],
+              let leftShoulder = joints[.leftShoulder],
+              let leftWrist = joints[.leftWrist],
+              leftHip.confidence > 0.5,
+              leftShoulder.confidence > 0.5 else {
+            feedback = "Position your full body in frame"
+            accuracy = 0.0
+            return
+        }
+
+        let kneeAngle = calculateAngle(
+            point1: leftHip.location,
+            vertex: leftKnee.location,
+            point2: CGPoint(x: leftKnee.location.x, y: leftKnee.location.y + 0.3)
+        )
+        let overhead = leftWrist.location.y < leftShoulder.location.y - 0.2
+
+        if kneeAngle < 100 && overhead {
+            if exercisePhase != .down {
+                exercisePhase = .down
+                feedback = "Good overhead squat position"
+                accuracy = 0.9
+            }
+        } else if kneeAngle > 160 && overhead {
+            if exercisePhase == .down {
+                exercisePhase = .up
+                repCount += 1
+                feedback = "Powerful snatch!"
+                accuracy = 0.95
+            } else {
+                feedback = "Pull and catch in overhead squat"
+                accuracy = 0.7
+            }
+        } else {
+            feedback = "One explosive motion to overhead"
+            accuracy = 0.75
+        }
+    }
+
+    private func analyzeDoubleUnder(_ joints: [VNHumanBodyPoseObservation.JointName: VNRecognizedPoint]) {
+        guard let leftAnkle = joints[.leftAnkle],
+              let rightAnkle = joints[.rightAnkle],
+              let leftWrist = joints[.leftWrist],
+              let rightWrist = joints[.rightWrist],
+              let leftElbow = joints[.leftElbow],
+              leftAnkle.confidence > 0.5 else {
+            feedback = "Position your full body in frame"
+            accuracy = 0.0
+            return
+        }
+
+        let feetTogether = abs(leftAnkle.location.x - rightAnkle.location.x) < 0.15
+        let jumpHeight = (leftAnkle.location.y + rightAnkle.location.y) / 2
+        let wristsLow = leftWrist.location.y > leftElbow.location.y
+
+        if jumpHeight < 0.7 && feetTogether && wristsLow {
+            if exercisePhase != .up {
+                exercisePhase = .up
+                repCount += 1
+                feedback = "Good jump! Fast wrist rotation"
+                accuracy = 0.9
+            }
+        } else if jumpHeight > 0.8 {
+            if exercisePhase == .up {
+                exercisePhase = .down
+                feedback = "Keep wrists low and fast"
+                accuracy = 0.85
+            }
+        } else {
+            feedback = "Jump higher, rotate wrists faster"
+            accuracy = 0.7
+        }
+    }
+
+    private func analyzePullUp(_ joints: [VNHumanBodyPoseObservation.JointName: VNRecognizedPoint]) {
+        guard let leftShoulder = joints[.leftShoulder],
+              let leftElbow = joints[.leftElbow],
+              let leftWrist = joints[.leftWrist],
+              let head = joints[.nose],
+              leftElbow.confidence > 0.5,
+              leftShoulder.confidence > 0.5 else {
+            feedback = "Position your upper body in frame"
+            accuracy = 0.0
+            return
+        }
+
+        let elbowAngle = calculateAngle(
+            point1: leftShoulder.location,
+            vertex: leftElbow.location,
+            point2: leftWrist.location
+        )
+        let chinAboveBar = head.location.y < leftWrist.location.y
+
+        if elbowAngle < 60 && chinAboveBar {
+            if exercisePhase != .up {
+                exercisePhase = .up
+                repCount += 1
+                feedback = "Chin over bar! Great pull-up"
+                accuracy = 0.95
+            }
+        } else if elbowAngle > 160 {
+            if exercisePhase == .up {
+                exercisePhase = .down
+                feedback = "Full extension, pull again"
+                accuracy = 0.85
+            } else {
+                feedback = "Pull up to get chin over bar"
+                accuracy = 0.7
+            }
+        } else {
+            feedback = "Pull through elbows, chin to bar"
+            accuracy = 0.75
+        }
     }
 
     func startSession() {
