@@ -12,7 +12,7 @@ struct ContentView: View {
             VStack {
                 HStack {
                     ExerciseSelector(selectedExercise: $selectedExercise)
-                        .onChange(of: selectedExercise) { _, newValue in
+                        .onChange(of: selectedExercise) { newValue in
                             poseDetector.currentExercise = newValue
                         }
                     Spacer()
